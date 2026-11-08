@@ -14,6 +14,10 @@ add_cmocka_test(test_rawdenoise
                 SOURCES test_rawdenoise.c
                 LINK_LIBRARIES lib_darktable cmocka)
 
+add_cmocka_test(test_exposure
+                SOURCES test_exposure.c
+                LINK_LIBRARIES lib_darktable cmocka)
+
 add_cmocka_test(test_colorin_rgb
                 SOURCES test_colorin_rgb.c
                 LINK_LIBRARIES lib_darktable cmocka)
@@ -33,4 +37,5 @@ if(WIN32)
     _copy_required_library(test_colorin_hsm lib_darktable)
     _copy_required_library(test_colorin_rgb lib_darktable)
     _copy_required_library(test_rawdenoise lib_darktable)
+    _copy_required_library(test_exposure lib_darktable)
 endif(WIN32)

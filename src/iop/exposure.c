@@ -475,13 +475,43 @@ static void _compute_deflicker_correction(dt_iop_exposure_params_t *p,
 
 static gboolean _show_computed(gpointer user_data);
 
+// the affine map the pipe applies: out = (in - black) * scale, which maps the white
+// point 2^-exposure to 1.0. black is kept below white so the scale stays finite and
+// positive. the area exposure mapping picker uses this too, so it predicts and solves
+// for exactly what is processed
+static inline void _exposure_black_and_scale(const float exposure_ev,
+                                             const float black_param,
+                                             float *const black,
+                                             float *const scale)
+{
+  const float white = exposure2white(exposure_ev);
+  *black = black_param >= white ? white - 0.01f : black_param;
+  *scale = 1.0f / (white - *black);
+}
+
+// the white point (in the domain _exposure_set_white() takes) for which the pipe maps
+// luminance y_in to y_target, where y_black is the luminance of RGB (black, black, black)
+// in the picker's XYZ. returns 0 when no usable white exists: the sample is near black
+// or at/below black, the target is (near) black, or the result is not a finite white
+// above black and above 0
+static inline float _white_for_target_luminance(const float y_in,
+                                                const float y_black,
+                                                const float black,
+                                                const float y_target)
+{
+  const float signal = y_in - y_black;
+  if(!(y_in > 1e-5f) || !(signal > 1e-5f) || !(y_target > 1e-5f)) return 0.0f;
+
+  const float white = black + signal / y_target;
+  return (isfinite(white) && white > black && white > 0.0f) ? white : 0.0f;
+}
+
 static void _process_common_setup(dt_iop_module_t *self,
                                   dt_dev_pixelpipe_iop_t *piece)
 {
   dt_iop_exposure_gui_data_t *g = self->gui_data;
   dt_iop_exposure_data_t *d = piece->data;
 
-  d->black = d->params.black;
   // the default is also the fallback for _compute_deflicker_correction below
   float exposure = d->params.exposure;
 
@@ -505,10 +535,7 @@ static void _process_common_setup(dt_iop_module_t *self,
     }
   }
 
-  const float white = exposure2white(exposure);
-  if(d->black >= white)
-    d->black = white - 0.01f;
-  d->scale = 1.0f / (white - d->black);
+  _exposure_black_and_scale(exposure, d->params.black, &d->black, &d->scale);
 }
 
 #ifdef HAVE_OPENCL
@@ -942,17 +969,23 @@ static void _auto_set_exposure(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe)
 
   const dt_spot_mode_t mode = dt_bauhaus_combobox_get(g->spot_mode);
 
+  // the black offset in the picker's XYZ: the pipe subtracts black per RGB channel
+  // before colorin, so in XYZ it is matrix_in * (black, black, black)
+  dt_aligned_pixel_t XYZ_black;
+  dot_product((dt_aligned_pixel_t){ p->black, p->black, p->black, 0.f },
+              input_profile->matrix_in, XYZ_black);
+
   if(mode == DT_SPOT_MODE_MEASURE)
   {
     // the exposure the pipe applies, i.e. the user setting plus the compensations
-    const float exposure_adjustment = _total_adjustment_ev(self, p);
-
-    const float gain = exp2f(exposure_adjustment);
-
-    // apply the exposure compensation
+    float black, scale;
+    _exposure_black_and_scale(_total_adjustment_ev(self, p), p->black, &black, &scale);
+    // black may have been pulled under white, exactly as in the pipe
+    dot_product((dt_aligned_pixel_t){ black, black, black, 0.f },
+                input_profile->matrix_in, XYZ_black);
     dt_aligned_pixel_t XYZ_out = {0.0f };
     for(int c = 0; c < 3; c++)
-      XYZ_out[c] = XYZ[c] * gain;
+      XYZ_out[c] = (XYZ[c] - XYZ_black[c]) * scale;
 
     // Convert to Lab for GUI feedback
     dt_aligned_pixel_t Lab_out;
@@ -981,9 +1014,19 @@ static void _auto_set_exposure(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe)
     dt_aligned_pixel_t XYZ_target = { 0.f };
     dt_Lab_to_XYZ(Lab_target, XYZ_target);
 
-    // a near-black target cannot be matched, and a near-black sample explodes the ratio
-    if(XYZ[1] > 1e-5f && XYZ_target[1] > 1e-5f)
-      _exposure_set_white(self, XYZ[1] / XYZ_target[1]);
+    // black is used unclamped: the white is solved for, and _white_for_target_luminance
+    // guarantees white > black, so the pipe will not clamp. an unreachable target
+    // (near-black sample, sample at or below black, near-black target, or a white
+    // outside the exposure range) leaves the correction alone
+    const float white =
+      _white_for_target_luminance(XYZ[1], XYZ_black[1], p->black, XYZ_target[1]);
+    if(white > 0.0f)
+    {
+      const float slider_ev = _required_exposure_slider_ev(self, p, white2exposure(white));
+      if(slider_ev >= dt_bauhaus_slider_get_hard_min(g->exposure)
+         && slider_ev <= dt_bauhaus_slider_get_hard_max(g->exposure))
+        _exposure_set_white(self, white);
+    }
   }
 }
 
