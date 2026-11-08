@@ -714,6 +714,10 @@ changes (where available).
   lightness was set to zero. Such a target cannot be reached, so the
   correction is now left alone instead.
 
+- Fixed exposure's area mapping ignoring the black level correction.
+  With a non-zero black level, the measured lightness was wrong and
+  the correction did not reach the requested target.
+
 - Fixed a possible crash when loading an image edited with a newer
   version of Darktable. This scenario is not supported but we should
   not crash. The offending modules are now reset to use the default
