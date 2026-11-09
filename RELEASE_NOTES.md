@@ -1000,6 +1000,11 @@ changes (where available).
 - Fixed scale pixels output shifted by a fraction of a pixel in each
   tile when the image was processed in tiles.
 
+- Edits no longer change brightness when a new darktable version learns
+  to read another camera's highlight preservation (HDR / dynamic range)
+  setting, as happened for Canon CR3 files with Auto Lighting Optimizer
+  edited in 5.4. Edits from 5.4 and 5.6 render as they did in 5.4.
+
 ## Lua
 
 ### API Version
