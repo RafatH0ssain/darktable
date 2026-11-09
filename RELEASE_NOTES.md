@@ -1000,6 +1000,11 @@ changes (where available).
 - Fixed scale pixels output shifted by a fraction of a pixel in each
   tile when the image was processed in tiles.
 
+- Fixed the default input color profile of 4-color raws (CYGM, RGBE).
+  It is now linear Rec709, which is what demosaic outputs for them,
+  instead of linear Rec2020. Edits that already have the input color
+  profile in their history keep their stored profile.
+
 ## Lua
 
 ### API Version
