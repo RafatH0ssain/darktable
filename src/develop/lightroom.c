@@ -87,14 +87,14 @@ typedef struct dt_iop_flip_params_v2_t
   dt_image_orientation_t orientation;
 } dt_iop_flip_params_v2_t;
 
-#define LRDT_EXPOSURE_VERSION 7
+#define LRDT_EXPOSURE_VERSION 8
 typedef enum dt_iop_exposure_mode_t
 {
   EXPOSURE_MODE_MANUAL = 0,
   EXPOSURE_MODE_DEFLICKER = 1
 } dt_iop_exposure_mode_t;
 
-typedef struct dt_iop_exposure_params_v7_t
+typedef struct dt_iop_exposure_params_v8_t
 {
   dt_iop_exposure_mode_t mode;
   float black;
@@ -103,7 +103,8 @@ typedef struct dt_iop_exposure_params_v7_t
   float deflicker_target_level;
   gboolean compensate_exposure_bias;
   gboolean compensate_hilite_pres;
-} dt_iop_exposure_params_v7_t;
+  int hilite_pres_rev;
+} dt_iop_exposure_params_v8_t;
 
 #define LRDT_GRAIN_VERSION 1
 typedef enum _dt_iop_grain_channel_t
@@ -590,7 +591,7 @@ typedef struct lr_data_t
   dt_iop_flip_params_v2_t pf;
   gboolean has_flip;
 
-  dt_iop_exposure_params_v7_t pe;
+  dt_iop_exposure_params_v8_t pe;
   gboolean has_exposure;
 
   dt_iop_vignette_params_v3_t pv;
@@ -1896,10 +1897,11 @@ gboolean dt_lightroom_import(dt_imgid_t imgid, dt_develop_t *dev, gboolean iauto
     // Lightroom's adjustments are relative to its default rendering, so add
     // them to the module's defaults for this image, which in the
     // scene-referred workflow hold the baseline boost and bias compensation
-    dt_iop_exposure_params_v7_t pe = { .mode = EXPOSURE_MODE_MANUAL,
+    dt_iop_exposure_params_v8_t pe = { .mode = EXPOSURE_MODE_MANUAL,
                                     .deflicker_percentile = 50.0f,
                                     .deflicker_target_level = -4.0f,
-                                    .compensate_hilite_pres = TRUE };
+                                    .compensate_hilite_pres = TRUE,
+                                    .hilite_pres_rev = DT_HILITE_PRES_REV };
     const dt_iop_module_t *exposure =
       dt_iop_get_module_by_op_priority(dev->iop, "exposure", 0);
     if(exposure && exposure->params_size == sizeof(pe))
@@ -1908,7 +1910,7 @@ gboolean dt_lightroom_import(dt_imgid_t imgid, dt_develop_t *dev, gboolean iauto
     pe.exposure += data.pe.exposure;
     pe.black += data.pe.black;
 
-    dt_add_hist(imgid, "exposure", (dt_iop_params_t *)&pe, sizeof(dt_iop_exposure_params_v7_t), imported,
+    dt_add_hist(imgid, "exposure", (dt_iop_params_t *)&pe, sizeof(dt_iop_exposure_params_v8_t), imported,
                 sizeof(imported), LRDT_EXPOSURE_VERSION, &n_import);
     refresh_needed = TRUE;
   }

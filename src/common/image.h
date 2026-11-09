@@ -136,6 +136,14 @@ typedef enum dt_exif_image_orientation_t
 
 #define DT_EXIF_TAG_UNINITIALIZED (-FLT_MAX)
 
+// revision of the highlight preservation detection rules in _check_highlight_preservation()
+// (common/exif.cc). bump it, and gate the new rule on it, whenever a rule is added or changed,
+// so that edits made under the old rules keep rendering as they did (#21476):
+//   1: darktable 5.4
+//   2: darktable 5.6 - Canon CR3 Auto Lighting Optimizer
+//   3: darktable 5.8 - Canon CR3 Highlight Tone Priority, Nikon Active D-Lighting outside HLG
+#define DT_HILITE_PRES_REV 3
+
 typedef enum dt_image_orientation_t
 {
   ORIENTATION_NULL    = -1,     //-1 $DESCRIPTION: "autodetect"
@@ -278,6 +286,8 @@ typedef struct dt_image_t
   float exif_focus_distance;
   float exif_crop;
   float exif_highlight_preservation;
+  // the bias above under each revision of the rules: [rev - 1] holds revision rev
+  float exif_highlight_preservation_rev[DT_HILITE_PRES_REV];
   int32_t exif_flash_tagvalue;
   char exif_maker[64];
   char exif_model[64];

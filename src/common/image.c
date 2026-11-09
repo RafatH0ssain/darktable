@@ -2603,6 +2603,8 @@ void dt_image_init(dt_image_t *img)
   g_strlcpy(img->filename, "(unknown)", sizeof(img->filename));
   img->exif_flash_tagvalue = -1; // -1 means we have no data (this is not the same as "flash not fired")
   img->exif_crop = 1.0;
+  img->exif_highlight_preservation = 0.0f;
+  memset(img->exif_highlight_preservation_rev, 0, sizeof(img->exif_highlight_preservation_rev));
   img->exif_exposure = 0;
   img->exif_exposure_bias = DT_EXIF_TAG_UNINITIALIZED;
   img->exif_aperture = 0;

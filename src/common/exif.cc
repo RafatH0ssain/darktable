@@ -1598,8 +1598,10 @@ static gboolean _check_lens_correction_data(Exiv2::ExifData &exifData,
   return img->exif_correction_type != CORRECTION_TYPE_NONE;
 }
 
+// the rules gated on rev are the ones added after 5.4; see DT_HILITE_PRES_REV in common/image.h
 static void _check_highlight_preservation(Exiv2::ExifData &exifData,
-                                          dt_image_t *img)
+                                          dt_image_t *img,
+                                          const int rev)
 {
     // Compute exposure bias applied by HDR/highlight-preservation/Dynamic Range Expansion/HLG-tone modes
     img->exif_highlight_preservation = 0.0f;
@@ -1619,7 +1621,7 @@ static void _check_highlight_preservation(Exiv2::ExifData &exifData,
        else if(state == 2)
 	  img->exif_highlight_preservation = 0.66f;	// estimated strength for Strong
     }
-    else if(FIND_EXIF_TAG("Exif.CanonLiOp.AutoLightingOptimizer"))
+    else if(rev >= 2 && FIND_EXIF_TAG("Exif.CanonLiOp.AutoLightingOptimizer"))
     {
        // Canon CR3 contains another tag, but same enum values
        // [0] state - 0=standard, 1=low, 2=strong, 3=off
@@ -1632,7 +1634,7 @@ static void _check_highlight_preservation(Exiv2::ExifData &exifData,
           img->exif_highlight_preservation = 0.66f;     // estimated strength for Strong
     }
     // Canon Highlight Tone Priority. D+ (1) and D+2 (2) both apply ~1 EV sensor underexposure.
-    if(FIND_EXIF_TAG("Exif.CanonLiOp.HighlightTonePriority"))
+    if(rev >= 3 && FIND_EXIF_TAG("Exif.CanonLiOp.HighlightTonePriority"))
     {
        const long state = pos->toLong(0);
        if(state > 0)
@@ -1647,9 +1649,10 @@ static void _check_highlight_preservation(Exiv2::ExifData &exifData,
       else if(dr == 400)
 	img->exif_highlight_preservation = 2.0f;
     }
-    else if(FIND_EXIF_TAG("Exif.Nikon3.ColorSpace") && pos->toLong() == 4) // HLG tone mode
+    else if(FIND_EXIF_TAG("Exif.Nikon3.ColorSpace") && (rev < 3 || pos->toLong() == 4)) // HLG tone mode
     {
-      img->exif_highlight_preservation = 2.0f;
+      if(pos->toLong() == 4)
+        img->exif_highlight_preservation = 2.0f;
     }
     else if(FIND_EXIF_TAG("Exif.Nikon3.ActiveDLighting"))
     {
@@ -1782,7 +1785,12 @@ void dt_exif_img_check_additional_tags(dt_image_t *img,
       _check_linear_response_limit(exifData, img);
       const int sel_illu = _check_forward_matrix(exifData, img);
       _check_profile_look_table(exifData, img, sel_illu);
-      _check_highlight_preservation(exifData, img);
+      // the bias under every revision of the rules, so that an edit can keep the one it was made with
+      for(int rev = 1; rev <= DT_HILITE_PRES_REV; rev++)
+      {
+        _check_highlight_preservation(exifData, img, rev);
+        img->exif_highlight_preservation_rev[rev - 1] = img->exif_highlight_preservation;
+      }
       _check_shading_compensation(exifData, img);
     }
     return;

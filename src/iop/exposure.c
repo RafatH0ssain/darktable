@@ -44,7 +44,7 @@
 #define exposure2white(x) exp2f(-(x))
 #define white2exposure(x) -dt_log2f(fmaxf(1e-20f, x))
 
-DT_MODULE_INTROSPECTION(7, dt_iop_exposure_params_t)
+DT_MODULE_INTROSPECTION(8, dt_iop_exposure_params_t)
 
 typedef enum dt_iop_exposure_mode_t
 {
@@ -72,6 +72,7 @@ typedef struct dt_iop_exposure_params_t
   float deflicker_target_level;     // $MIN: -18.0 $MAX: 18.0 $DEFAULT: -4.0 $DESCRIPTION: "target level"
   gboolean compensate_exposure_bias;// $DEFAULT: FALSE $DESCRIPTION: "compensate exposure bias"
   gboolean compensate_hilite_pres;  // $DEFAULT: TRUE $DESCRIPTION: "compensate highlight preservation"
+  int hilite_pres_rev;              // $MIN: 1 $MAX: DT_HILITE_PRES_REV $DEFAULT: DT_HILITE_PRES_REV
 } dt_iop_exposure_params_t;
 
 typedef struct dt_iop_exposure_gui_data_t
@@ -182,6 +183,18 @@ int legacy_params(dt_iop_module_t *self,
     gboolean compensate_exposure_bias;
     gboolean compensate_hilite_pres;
   } dt_iop_exposure_params_v7_t;
+
+  typedef struct dt_iop_exposure_params_v8_t
+  {
+    dt_iop_exposure_mode_t mode;
+    float black;
+    float exposure;
+    float deflicker_percentile;
+    float deflicker_target_level;
+    gboolean compensate_exposure_bias;
+    gboolean compensate_hilite_pres;
+    int hilite_pres_rev;
+  } dt_iop_exposure_params_v8_t;
 
   if(old_version == 2)
   {
@@ -305,6 +318,27 @@ int legacy_params(dt_iop_module_t *self,
     *new_version = 7;
     return 0;
   }
+  if(old_version == 7)
+  {
+    const dt_iop_exposure_params_v7_t *o = old_params;
+    dt_iop_exposure_params_v8_t *n = calloc(1, sizeof(dt_iop_exposure_params_v8_t));
+
+    n->mode = o->mode;
+    n->black = o->black;
+    n->exposure = o->exposure;
+    n->deflicker_percentile = o->deflicker_percentile;
+    n->deflicker_target_level = o->deflicker_target_level;
+    n->compensate_exposure_bias = o->compensate_exposure_bias;
+    n->compensate_hilite_pres = o->compensate_hilite_pres;
+    // v7 edits were made before the detection rules were pinned. most were made with 5.4,
+    // which introduced v7, so give them the rules 5.4 shipped with (#21476)
+    n->hilite_pres_rev = 1;
+
+    *new_params = n;
+    *new_params_size = sizeof(dt_iop_exposure_params_v8_t);
+    *new_version = 8;
+    return 0;
+  }
   return 1;
 }
 
@@ -321,7 +355,8 @@ void init_presets(dt_iop_module_so_t *self)
                                  .deflicker_percentile = 50.0f,
                                  .deflicker_target_level = -4.0f,
                                  .compensate_exposure_bias = FALSE,
-                                 .compensate_hilite_pres = FALSE },
+                                 .compensate_hilite_pres = FALSE,
+                                 .hilite_pres_rev = DT_HILITE_PRES_REV },
      sizeof(dt_iop_exposure_params_t), TRUE, DEVELOP_BLEND_CS_RGB_DISPLAY);
 
   const gboolean is_scene_referred = dt_is_scene_referred();
@@ -584,16 +619,21 @@ static float _get_exposure_bias(const dt_iop_module_t *self)
     return 0.0f;
 }
 
-static float _get_highlight_bias(const dt_iop_module_t *self)
+static float _get_highlight_bias(const dt_iop_module_t *self,
+                                 const dt_iop_exposure_params_t *p)
 {
   float bias = 0.0f;
 
-  // exif_highlight_preservation holds the exposure (EV) that the camera withheld
+  // exif_highlight_preservation_rev holds the exposure (EV) that the camera withheld
   // in an HDR / dynamic-range / HLG tone mode; so we compensate for it in exposure.
   // Per-camera detection happens in _check_highlight_preservation() in common/exif.cc.
+  // the edit pins the revision of the rules it was made with, so that a later rule
+  // change does not alter it
+  const int rev = CLAMP(p->hilite_pres_rev, 1, DT_HILITE_PRES_REV);
 
-  if(self->dev && self->dev->image_storage.exif_highlight_preservation > 0.0f)
-    bias = self->dev->image_storage.exif_highlight_preservation;
+  if(self->dev
+     && self->dev->image_storage.exif_highlight_preservation_rev[rev - 1] > 0.0f)
+    bias = self->dev->image_storage.exif_highlight_preservation_rev[rev - 1];
 
   // sanity checks, don't trust exif tags too much
   if(bias != DT_EXIF_TAG_UNINITIALIZED)
@@ -617,7 +657,7 @@ static inline float _exposure_compensation_ev(const dt_iop_module_t *const self,
 
   // undo the underexposure the camera applied automatically
   if(p->compensate_hilite_pres)
-    compensation += _get_highlight_bias(self);
+    compensation += _get_highlight_bias(self, p);
 
   return compensation;
 }
@@ -715,7 +755,7 @@ void gui_update(dt_iop_module_t *self)
   dt_bauhaus_widget_set_label_text(g->compensate_exposure_bias, label);
   g_free(label);
 
-  const float hlbias = _get_highlight_bias(self);
+  const float hlbias = _get_highlight_bias(self, p);
   dt_bauhaus_toggle_set(g->compensate_hilite_preserv,
                         p->compensate_hilite_pres);
   /* xgettext:no-c-format */
