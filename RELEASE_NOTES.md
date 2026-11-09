@@ -537,6 +537,11 @@ changes (where available).
 
 ## Bug Fixes
 
+- Fixed a phantom duplicate, with an extra `_01` sidecar, appearing
+  when a folder holding both `IMG_x.jpg` and `IMG_x_1.jpg` was
+  imported again: the sidecar of `IMG_x_1.jpg` was taken for a
+  version of `IMG_x.jpg`.
+
 - Fixed faint seams on a 112 pixel grid in images demosaiced with
   LMMSE, where each tile read leftover data from the previous tile.
 
