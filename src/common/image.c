@@ -2025,15 +2025,8 @@ static gboolean _valid_glob_match(const char *const name, size_t offset)
 }
 #endif /* !_WIN32 */
 
-GList* dt_image_find_duplicates(const char* filename)
+static GList *_find_sidecar_candidates(const char *filename)
 {
-  // find all duplicates of an image by looking for all possible
-  //   sidecars for the file: file.ext.xmp, file_NN.ext.xmp,
-  //   file_NNN.ext.xmp, and file_NNNN.ext.xmp because a glob() needs
-  //   to scan the entire directory, we minimize work for large
-  //   directories by doing a single glob which might generate false
-  //   matches (if the image name contains an underscore followed by a
-  //   digit) and filter out the false positives afterward
 #ifndef _WIN32
   // start by locating the extension, which we'll be referencing multiple times
   const size_t fn_len = strlen(filename);
@@ -2087,6 +2080,75 @@ GList* dt_image_find_duplicates(const char* filename)
 #else
   return win_image_find_duplicates(filename);
 #endif
+}
+
+// is this sidecar part of filename's own version chain?  versions are
+// always written as "_%02d", so a suffix of fewer than two digits
+// cannot be one; and where the suffixed name exists as an image in its
+// own right, the sidecar belongs to that image
+static gboolean _is_duplicate_sidecar(const char *xmp,
+                                      const size_t root_len,
+                                      const size_t ext_len)
+{
+  // work on basenames: the Windows search returns full paths as well
+  const char *base = strrchr(xmp, G_DIR_SEPARATOR);
+  if(!base) base = strrchr(xmp, '/');
+  base = base ? base + 1 : xmp;
+
+  const size_t base_len = strlen(base);
+  // too short to even be root.ext.xmp
+  if(base_len < 4 + ext_len + root_len) return FALSE;
+  const size_t stem_len = base_len - 4 - ext_len;
+
+  // the plain sidecar root.ext.xmp is version 0
+  if(stem_len == root_len) return TRUE;
+
+  // a versioned sidecar: "_" then at least two digits right after the root
+  if(base[root_len] != '_' || stem_len < root_len + 3) return FALSE;
+  for(size_t i = root_len + 1; i < stem_len; i++)
+    if(!g_ascii_isdigit(base[i])) return FALSE;
+
+  // versions are written as "_%02d": two digits, or more without a leading zero
+  if(stem_len - root_len - 1 > 2 && base[root_len + 1] == '0') return FALSE;
+
+  // root_NN.ext, even empty or unreadable, owns this sidecar, not root.ext
+  gchar *image = g_strndup(xmp, strlen(xmp) - 4);
+  const gboolean taken = g_file_test(image, G_FILE_TEST_IS_REGULAR);
+  g_free(image);
+  return !taken;
+}
+
+// find all duplicates of an image by looking for all possible
+//   sidecars for the file: file.ext.xmp, file_NN.ext.xmp,
+//   file_NNN.ext.xmp, and file_NNNN.ext.xmp because a glob() needs
+//   to scan the entire directory, we minimize work for large
+//   directories by doing a single glob which might generate false
+//   matches (if the image name contains an underscore followed by a
+//   digit) and filter out the false positives afterward
+GList* dt_image_find_duplicates(const char* filename)
+{
+  GList *files = _find_sidecar_candidates(filename);
+
+  // root_len and ext_len describe filename's basename, as the sidecar
+  // names do: the last dot starts the extension, 0 if there is none
+  const char *base = strrchr(filename, G_DIR_SEPARATOR);
+  if(!base) base = strrchr(filename, '/');
+  base = base ? base + 1 : filename;
+  const char *ext = strrchr(base, '.');
+  const size_t ext_len = ext ? strlen(ext) : 0;
+  const size_t root_len = strlen(base) - ext_len;
+
+  for(GList *iter = files; iter;)
+  {
+    GList *next = g_list_next(iter);
+    if(!_is_duplicate_sidecar(iter->data, root_len, ext_len))
+    {
+      g_free(iter->data);
+      files = g_list_delete_link(files, iter);
+    }
+    iter = next;
+  }
+  return files;
 }
 
 // Search for duplicate's sidecar files and import them if found and not in DB yet

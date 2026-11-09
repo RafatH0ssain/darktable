@@ -39,6 +39,11 @@ add_cmocka_test(test_dtdata
                 SOURCES test_dtdata.c
                 LINK_LIBRARIES lib_darktable cmocka)
 
+# sidecar discovery for duplicate versions, on temp files: no database needed
+add_cmocka_test(test_image_duplicates
+                SOURCES test_image_duplicates.c
+                LINK_LIBRARIES lib_darktable cmocka)
+
 # Windows: libs have to be copied next to the executable
 if(WIN32)
     _copy_required_library(test_spektra_sim lib_darktable)
@@ -47,6 +52,7 @@ if(WIN32)
     _copy_required_library(test_fixed_strings lib_darktable)
     _copy_required_library(test_history_strings lib_darktable)
     _copy_required_library(test_dtdata lib_darktable)
+    _copy_required_library(test_image_duplicates lib_darktable)
 endif(WIN32)
 
 add_cmocka_test(test_collection_navigation
