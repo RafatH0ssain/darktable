@@ -2381,8 +2381,10 @@ corrupted_profile:
 
   if(color_profile != DT_COLORSPACE_NONE)
     d->type = color_profile;
-  else if(img->flags & DT_IMAGE_4BAYER) // 4Bayer images have been pre-converted to rec2020
-    d->type = DT_COLORSPACE_LIN_REC2020;
+  else if(img->flags & DT_IMAGE_4BAYER)
+    // demosaic converts 4Bayer images to linear Rec709 (sRGB primaries in
+    // dt_colorspaces_conversion_matrices_rgb(), colorspaces.c:2514)
+    d->type = DT_COLORSPACE_LIN_REC709;
   else if(dt_image_is_monochrome(img))
     d->type = DT_COLORSPACE_LIN_REC709;
   else if(img->colorspace == DT_IMAGE_COLORSPACE_SRGB)
