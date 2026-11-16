@@ -8404,9 +8404,9 @@ static gboolean _popover_menu_query_tooltip(GtkWidget *widget,
     {
       gtk_tooltip_set_custom(tooltip, custom);
 
-      // GTK3 reuses the tooltip window and positions it from the size of the
-      // previous tooltip, before the new content is allocated. Resize it to
-      // the new content now so it is placed (and flipped) correctly.
+      // the tooltip window is reused between items and can still carry the
+      // previous tooltip's size when GTK places it, so size it for the new
+      // content first
       GtkWidget *tip_window = gtk_widget_get_toplevel(custom);
       GdkWindow *gdk_window = GTK_IS_WINDOW(tip_window)
                               ? gtk_widget_get_window(tip_window) : NULL;
