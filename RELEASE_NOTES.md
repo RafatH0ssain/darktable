@@ -1164,6 +1164,10 @@ changes (where available).
   colored field when an edit made with darktable 4.7 or older had white
   balance at the camera's as-shot or reference multipliers.
 
+- Fixed one mouse wheel step moving two entries in drop-down lists, such
+  as the LUT 3D file list, or two rows in the lighttable on systems where
+  a wheel step is reported as a larger smooth scroll (e.g. Wayland).
+
 ## Lua
 
 ### API Version
