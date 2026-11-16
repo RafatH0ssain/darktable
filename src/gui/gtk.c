@@ -681,6 +681,22 @@ gboolean dt_gui_get_scroll_deltas(const GdkEvent *event,
   return handled;
 }
 
+// take the whole steps out of a smooth scroll accumulator, but at most one
+// per event: a single wheel notch can arrive as one smooth event with
+// |delta| > 1 (e.g. 1.5 on Wayland), which must still count as one step
+// (#23019). When clamping, drop the leftover so it can't add a step later.
+static int _scroll_take_unit_step(gdouble *acc)
+{
+  const gdouble steps = trunc(*acc);
+  if(fabs(steps) > 1.0)
+  {
+    *acc = 0.0;
+    return steps > 0.0 ? 1 : -1;
+  }
+  *acc -= steps;
+  return (int)steps;
+}
+
 gboolean dt_gui_get_scroll_unit_deltas(const GdkEvent *event,
                                        int *delta_x,
                                        int *delta_y)
@@ -757,18 +773,13 @@ gboolean dt_gui_get_scroll_unit_deltas(const GdkEvent *event,
         acc_y += scroll_delta_y;
 #endif
       }
-      const gdouble amt_x = trunc(acc_x);
-      const gdouble amt_y = trunc(acc_y);
-      if(amt_x != 0 || amt_y != 0)
+      const int amt_x = _scroll_take_unit_step(&acc_x);
+      const int amt_y = _scroll_take_unit_step(&acc_y);
+      if((delta_x && amt_x != 0) || (delta_y && amt_y != 0))
       {
-        acc_x -= amt_x;
-        acc_y -= amt_y;
-        if((delta_x && amt_x != 0) || (delta_y && amt_y != 0))
-        {
-          if(delta_x) *delta_x = (int)amt_x;
-          if(delta_y) *delta_y = (int)amt_y;
-          handled = TRUE;
-        }
+        if(delta_x) *delta_x = amt_x;
+        if(delta_y) *delta_y = amt_y;
+        handled = TRUE;
       }
       break;
     default:
@@ -7902,24 +7913,9 @@ static void _scroll_proxy_real(GtkEventControllerScroll* controller,
           _scroll_discrete_dy = 0.0;
         _scroll_discrete_dx += dx;
         _scroll_discrete_dy += dy;
-        dx = dy = 0.0;
-        // can return |delta| > 1, but clamping to -1 < delta < 1 dulls
-        // responsiveness, so it is up to the caller to handle this
-        // FIXME: actually clamp and if caller doesn't want clamping
-        //        they should not use discerete scrolling?
-        // FIXME: make another flag to setup func if want to clamp?
-        if(fabs(_scroll_discrete_dx) >= 1.0)
-        {
-          const int steps = trunc(_scroll_discrete_dx);
-          _scroll_discrete_dx -= steps;
-          dx = steps;
-        }
-        if(fabs(_scroll_discrete_dy) >= 1.0)
-        {
-          const int steps = trunc(_scroll_discrete_dy);
-          _scroll_discrete_dy -= steps;
-          dy = steps;
-        }
+        // at most one step per event, see _scroll_take_unit_step()
+        dx = _scroll_take_unit_step(&_scroll_discrete_dx);
+        dy = _scroll_take_unit_step(&_scroll_discrete_dy);
       }
     }
     if(dx != 0.0 || dy != 0.0)
