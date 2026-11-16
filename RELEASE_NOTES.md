@@ -1164,6 +1164,10 @@ changes (where available).
   colored field when an edit made with darktable 4.7 or older had white
   balance at the camera's as-shot or reference multipliers.
 
+- Fixed color checker corners in color calibration sometimes jumping
+  to the top-left corner of the image view when dropped, seen with
+  touchpad and Magic Mouse drags on macOS.
+
 ## Lua
 
 ### API Version
