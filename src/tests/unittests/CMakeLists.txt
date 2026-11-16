@@ -48,3 +48,12 @@ add_cmocka_test(test_hdr_alignment_internal
 if(WIN32)
     _copy_required_library(test_hdr_alignment_internal lib_darktable)
 endif(WIN32)
+
+# one unit step per smooth scroll event, see dt_gui_get_scroll_unit_deltas()
+add_cmocka_test(test_scroll_unit_steps
+                SOURCES test_scroll_unit_steps.c
+                LINK_LIBRARIES lib_darktable cmocka)
+
+if(WIN32)
+    _copy_required_library(test_scroll_unit_steps lib_darktable)
+endif(WIN32)
