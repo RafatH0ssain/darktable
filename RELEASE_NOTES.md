@@ -1152,8 +1152,8 @@ changes (where available).
   multipliers match one of the camera's presets: "settings" was empty
   and the finetune slider had no effect.
 
-- Fixed the style preview in the darkroom styles menu sometimes going
-  off screen, depending on the size of the previously hovered style.
+- Fixed the style preview in the darkroom styles menu being placed using
+  the size of the previously hovered style, which could put it off screen.
 
 - Fixed a crash when opening an image from a Canon PowerShot A630 in the
   darkroom, if its white balance was the camera's "daylight" preset.
