@@ -1164,6 +1164,10 @@ changes (where available).
   colored field when an edit made with darktable 4.7 or older had white
   balance at the camera's as-shot or reference multipliers.
 
+- Fixed the collections module replacing a filter typed with an
+  operator or a range, such as `>=1` for rating, with the value of the
+  only matching row when Enter was pressed.
+
 ## Lua
 
 ### API Version
