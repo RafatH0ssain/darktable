@@ -8403,6 +8403,20 @@ static gboolean _popover_menu_query_tooltip(GtkWidget *widget,
     if(custom)
     {
       gtk_tooltip_set_custom(tooltip, custom);
+
+      // GTK3 reuses the tooltip window and positions it from the size of the
+      // previous tooltip, before the new content is allocated. Resize it to
+      // the new content now so it is placed (and flipped) correctly.
+      GtkWidget *tip_window = gtk_widget_get_toplevel(custom);
+      GdkWindow *gdk_window = GTK_IS_WINDOW(tip_window)
+                              ? gtk_widget_get_window(tip_window) : NULL;
+      if(gdk_window)
+      {
+        GtkRequisition natural;
+        gtk_widget_get_preferred_size(tip_window, NULL, &natural);
+        gdk_window_resize(gdk_window, natural.width, natural.height);
+      }
+
       return TRUE;
     }
   }
