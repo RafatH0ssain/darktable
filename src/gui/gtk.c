@@ -1772,8 +1772,9 @@ static void _button_released(GtkGestureSingle *gesture,
                              gdouble y,
                              gpointer user_data)
 {
-  // the cancel handler re-emits a synthetic release with no button; the old
-  // handler never saw one (see the Phase 3 note in gtk.h)
+  // when GTK cancels the gesture, _gesture_cancel() re-emits a synthetic
+  // release at the last pointer position; the button is still set then, so
+  // modules end their drag where the pointer was
   const guint button = gtk_gesture_single_get_current_button(gesture);
   if(!button) return;
 
@@ -7376,7 +7377,12 @@ static void _gesture_cancel(GtkGestureSingle *gesture,
                             GdkEventSequence *sequence,
                             GtkWidget *widget)
 {
-  g_signal_emit_by_name(gesture, "released", 1, .0, .0);
+  // report the release where the pointer last was: emitting it at (0,0) made
+  // drag handlers (e.g. the color checker corners in color calibration) jump
+  // to the top-left corner of the widget when GTK canceled the gesture
+  gdouble x = .0, y = .0;
+  gtk_gesture_get_point(GTK_GESTURE(gesture), sequence, &x, &y);
+  g_signal_emit_by_name(gesture, "released", 1, x, y);
 }
 
 GtkGestureSingle *(dt_gui_connect_click)(GtkWidget *widget,

@@ -549,10 +549,7 @@ static void _gradient_slider_button_released(GtkGestureSingle *gesture,
   if(gtk_gesture_single_get_current_button(gesture) == GDK_BUTTON_PRIMARY
      && selected != -1 && gslider->do_reset == FALSE)
   {
-    // do not move the marker to x here: press and motion already did, and
-    // when the sequence is cancelled (e.g. claimed by an ancestor's gesture)
-    // dt_gui_connect_click() delivers this signal as a fake release at
-    // (0, 0), which would throw the marker to the left end
+    // do not move the marker to x here: press and motion already did
     gslider->is_changed = TRUE;
 
     gtk_widget_queue_draw(widget);
