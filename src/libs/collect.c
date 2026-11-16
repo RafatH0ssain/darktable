@@ -3339,6 +3339,34 @@ static void row_activated_with_event(GtkTreeView *view,
   dt_control_queue_redraw_center();
 }
 
+// whether the text is a comparison or a range for a numeric property
+static gboolean _typed_operator(const int property,
+                                const gchar *text)
+{
+  gchar *operator = NULL, *number1 = NULL, *number2 = NULL;
+  switch(property)
+  {
+    case DT_COLLECTION_PROP_APERTURE:
+    case DT_COLLECTION_PROP_FOCAL_LENGTH:
+    case DT_COLLECTION_PROP_ISO:
+    case DT_COLLECTION_PROP_RATING:
+    case DT_COLLECTION_PROP_ASPECT_RATIO:
+    case DT_COLLECTION_PROP_EXPOSURE_BIAS:
+      dt_collection_split_operator_number(text, &number1, &number2, &operator);
+      break;
+    case DT_COLLECTION_PROP_EXPOSURE:
+      dt_collection_split_operator_exposure(text, &number1, &number2, &operator);
+      break;
+    default:
+      break;
+  }
+  const gboolean res = operator != NULL;
+  g_free(operator);
+  g_free(number1);
+  g_free(number2);
+  return res;
+}
+
 static void entry_activated(GtkWidget *entry,
                             dt_lib_collect_rule_t *d)
 {
@@ -3362,8 +3390,9 @@ static void entry_activated(GtkWidget *entry,
 
     rows = gtk_tree_model_iter_n_children(model, NULL);
 
-    // if only one row, press enter in entry box to fill it with the row value
-    if(rows == 1)
+    // if only one row, press enter in entry box to fill it with the row value,
+    // unless a comparison (>=1) or a range ([1;3]) was typed
+    if(rows == 1 && !_typed_operator(property, gtk_entry_get_text(GTK_ENTRY(d->text))))
     {
       GtkTreeIter iter;
       if(gtk_tree_model_get_iter_first(model, &iter))
